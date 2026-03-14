@@ -1,5 +1,6 @@
-
 import React, { useMemo, useState } from "react";
+
+const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1478513912428105798/YskhrmFbw6fxGY5rAn4DOcueBP7_MJSrlsYyD3kuEu0FEMPu9R1Ojc9lpav_VdeLa3Li";
 
 const FFSA_CLASSES = [
   {
@@ -54,6 +55,35 @@ const FFSA_CLASSES = [
 ];
 
 const LANGUAGES = ["French", "English", "Spanish", "Italian", "German", "Portuguese", "Polish", "Other"];
+
+async function sendDiscordNotification({ pseudo, nom, discord, nationality, languages, experience, rsfProfile, classe, voiture }) {
+  await fetch(DISCORD_WEBHOOK_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      embeds: [
+        {
+          title: "Nouvelle inscription / New Registration",
+          color: 3447003,
+          fields: [
+            { name: "Pseudo", value: pseudo || "Non défini", inline: true },
+            { name: "Nom réel / Real name", value: nom || "Non défini", inline: true },
+            { name: "Discord", value: discord || "Non défini", inline: true },
+            { name: "Nationalité / Nationality", value: nationality || "Non définie", inline: true },
+            { name: "Langues / Languages", value: languages?.length ? languages.join(", ") : "Non définies", inline: true },
+            { name: "Niveau / Experience", value: experience || "Non défini", inline: true },
+            { name: "Classe / Class", value: classe || "Non définie", inline: true },
+            { name: "Voiture / Car", value: voiture || "Non définie", inline: true },
+            { name: "Profil RSF / RSF Profile", value: rsfProfile || "Non défini", inline: false }
+          ],
+          timestamp: new Date().toISOString()
+        }
+      ]
+    })
+  });
+}
 
 export default function App() {
   const [form, setForm] = useState({
@@ -112,13 +142,33 @@ export default function App() {
     return e;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const e = validate();
     if (Object.keys(e).length > 0) {
       setErrors(e);
       return;
     }
-    setSubmitted(true);
+
+    try {
+      await sendDiscordNotification({
+        pseudo: form.pseudo,
+        nom: form.nom,
+        discord: form.discord,
+        nationality: form.nationality,
+        languages: form.languages.includes("Other")
+          ? [...form.languages.filter((l) => l !== "Other"), form.otherLang].filter(Boolean)
+          : form.languages,
+        experience: form.experience,
+        rsfProfile: form.rsfProfile,
+        classe: selectedCls?.label || "Non définie",
+        voiture: form.car
+      });
+
+      setSubmitted(true);
+    } catch (error) {
+      console.error("Erreur envoi Discord :", error);
+      alert("Erreur lors de l'envoi vers Discord.");
+    }
   };
 
   const resetForm = () => {
@@ -496,6 +546,3 @@ function InfoCard({ label, value, accent }) {
     <div className="rounded-xl border border-[#2b2b2b] bg-black/20 p-4">
       <div className="text-[11px] font-bold uppercase tracking-[2px] text-zinc-500">{label}</div>
       <div className="mt-1 text-sm" style={{ color: accent || "#fff" }}>{value}</div>
-    </div>
-  );
-}
