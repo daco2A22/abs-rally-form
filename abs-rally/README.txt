@@ -1,2 +1,2 @@
-Version complète V3 sans vidéo, avec fond animé, particules, animations sur les classes, logos branchés sur public/abs.png et public/afrl.png.
-Lancer : npm install && npm run dev
+Projet corrigé avec vrais logos /abs.png et /afrl.png et lien règlement ajouté.
+Lancer : npm install puis npm run dev
