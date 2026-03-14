@@ -137,20 +137,20 @@ export default function V2PreviewRBR() {
       ? [...form.languages.filter((l) => l !== "Other"), form.otherLang]
       : form.languages;
     const embed = {
-      title: "🏁 Nouvelle Inscription — ABS French Rally League",
+      title: "🏁 Nouvelle inscription / New Registration — ABS French Rally League",
       color: 0xf0b429,
       fields: [
-        { name: "👤 Pseudo ingame", value: form.pseudo || "—", inline: true },
-        { name: "📛 Nom réel", value: form.nom || "—", inline: true },
+        { name: "👤 Pseudo", value: form.pseudo || "—", inline: true },
+        { name: "📛 Nom réel / Real Name", value: form.nom || "—", inline: true },
         { name: "💬 Discord", value: form.discord || "—", inline: true },
-        { name: "🌍 Nationalité", value: form.nationality || "—", inline: true },
-        { name: "🗣️ Langues", value: langs.join(", ") || "—", inline: true },
-        { name: "⭐ Niveau", value: form.experience || "—", inline: true },
-        { name: "🏎️ Classe", value: cls?.label || "—", inline: true },
-        { name: "🚗 Voiture", value: form.car || "—", inline: true },
+        { name: "🌍 Nationalité / Nationality", value: form.nationality || "—", inline: true },
+        { name: "🗣️ Langues / Languages", value: langs.join(", ") || "—", inline: true },
+        { name: "⭐ Niveau / Level", value: form.experience || "—", inline: true },
+        { name: "🏎️ Classe / Class", value: cls?.label || "—", inline: true },
+        { name: "🚗 Voiture / Car", value: form.car || "—", inline: true },
         { name: "🔗 Profil RSF", value: form.rsfProfile || "—", inline: false },
       ],
-      footer: { text: "ABS French Rally League — AFRL NGP7" },
+      footer: { text: "ABS French Rally League — RBR RSF NGP7" },
       timestamp: new Date().toISOString(),
     };
     try {
