@@ -442,9 +442,72 @@ export default function V2PreviewRBR() {
                     {form.reglement ? 'Règlement accepté' : 'En attente d’acceptation'}
                   </div>
                 </div>
-                <button onClick={handleSubmit} disabled={loading} className="mt-2 w-full rounded-xl bg-[#f0b429] px-6 py-4 text-lg font-black uppercase tracking-[2px] text-white shadow-lg transition duration-200 hover:-translate-y-1 hover:brightness-105 active:translate-y-0 disabled:opacity-60">
-                  VALIDER / SUBMIT →
-                </button>
+
+                <div className="mt-2 space-y-3">
+                  <button
+                    onClick={handleSubmit}
+                    disabled={loading}
+                    className="w-full rounded-xl bg-[#f0b429] px-6 py-4 text-lg font-black uppercase tracking-[2px] text-white shadow-lg transition duration-200 hover:-translate-y-1 hover:brightness-105 active:translate-y-0 disabled:opacity-60"
+                  >
+                    VALIDER / SUBMIT →
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!form.rsfProfile) {
+                        alert("Entre ton lien RSF");
+                        return;
+                      }
+
+                      try {
+                        const res = await fetch("https://abs-discord-counter-production.up.railway.app/api/registration/find-by-rsf", {
+                          method: "POST",
+                          headers: {
+                            "Content-Type": "application/json",
+                          },
+                          body: JSON.stringify({
+                            rsfProfile: form.rsfProfile,
+                          }),
+                        });
+
+                        const data = await res.json();
+
+                        if (!res.ok) {
+                          alert(data.error || "Inscription introuvable");
+                          return;
+                        }
+
+                        const r = data.registration;
+                        const matchedClass = FFSA_CLASSES.find((cls) => cls.label === r.className);
+
+                        setForm((prev) => ({
+                          ...prev,
+                          pseudo: r.pseudo || "",
+                          nom: r.nom || "",
+                          discord: r.discord || "",
+                          nationality: r.nationality || "",
+                          experience: r.experience || "",
+                          rsfProfile: r.rsfProfile || prev.rsfProfile,
+                          car: r.car || "",
+                          classId: matchedClass?.id || prev.classId,
+                          languages: Array.isArray(r.languages) ? r.languages : prev.languages,
+                        }));
+
+                        if (matchedClass) {
+                          setActiveClass(matchedClass.id);
+                        }
+
+                        alert("Inscription chargée 🔥");
+                      } catch (err) {
+                        alert("Erreur connexion bot");
+                      }
+                    }}
+                    className="w-full rounded-xl border border-[#5865F2] bg-[#5865F2]/10 px-6 py-4 text-sm font-bold uppercase tracking-[2px] text-[#9aa7ff] transition duration-200 hover:-translate-y-1 hover:bg-[#5865F2]/20"
+                  >
+                    MODIFIER
+                  </button>
+                </div>
               </div>
             </div>
           </aside>
