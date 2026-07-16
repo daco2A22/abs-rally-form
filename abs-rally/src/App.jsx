@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 const FFSA_CLASSES = [
   {
@@ -75,6 +75,10 @@ export default function V2PreviewRBR() {
   const [loading, setLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
+  // "none" | "pending" | "approved" | "refused"
+  const [carChangeStatus, setCarChangeStatus] = useState("none");
+  const [carChangeLoading, setCarChangeLoading] = useState(false);
+
   const currentClass = useMemo(
     () => FFSA_CLASSES.find((c) => c.id === activeClass) || null,
     [activeClass]
@@ -90,6 +94,9 @@ export default function V2PreviewRBR() {
 
   const BOT_API_URL =
     "https://abs-discord-counter-production.up.railway.app";
+
+  const CAR_CHANGE_BOT_URL =
+    "https://abs-car-change-bot-production.up.railway.app";
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -123,6 +130,65 @@ export default function V2PreviewRBR() {
   };
 
   const normalizeRSF = (url) => (url || "").trim().toLowerCase().replace(/\/$/, "");
+
+  const requestCarChange = async () => {
+    if (!form.rsfProfile) {
+      alert("Renseigne d'abord ton lien RSF avant de faire une demande.");
+      return;
+    }
+
+    setCarChangeLoading(true);
+    try {
+      const res = await fetch(`${CAR_CHANGE_BOT_URL}/api/request-car-change`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rsfProfile: form.rsfProfile,
+          pseudo: form.pseudo,
+          currentCar: form.car,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.error || "Erreur lors de l'envoi de la demande");
+        setCarChangeLoading(false);
+        return;
+      }
+
+      setCarChangeStatus("pending");
+    } catch {
+      alert("Erreur réseau, réessaie / Network error, please retry");
+    }
+    setCarChangeLoading(false);
+  };
+
+  // Vérifie automatiquement, toutes les 5 secondes, si la demande a été
+  // traitée par un admin sur Discord — sans que le joueur ait à faire quoi
+  // que ce soit.
+  useEffect(() => {
+    if (carChangeStatus !== "pending" || !form.rsfProfile) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(
+          `${CAR_CHANGE_BOT_URL}/api/car-change-status?rsf=${encodeURIComponent(
+            form.rsfProfile
+          )}`
+        );
+        const data = await res.json();
+
+        if (data.status === "approved" || data.status === "refused") {
+          setCarChangeStatus(data.status);
+        }
+      } catch {
+        // on ignore silencieusement une erreur réseau ponctuelle, on retente au prochain tick
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [carChangeStatus, form.rsfProfile]);
 
   const validate = () => {
     const e = {};
@@ -204,6 +270,15 @@ export default function V2PreviewRBR() {
           return;
         }
 
+        if (form.rsfProfile) {
+          fetch(`${CAR_CHANGE_BOT_URL}/api/car-change-consume`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ rsfProfile: form.rsfProfile }),
+          }).catch(() => {});
+        }
+        setCarChangeStatus("none");
+
         setSubmitted(true);
         setLoading(false);
         return;
@@ -260,6 +335,7 @@ export default function V2PreviewRBR() {
     });
     setActiveClass(null);
     setErrors({});
+    setCarChangeStatus("none");
   };
 
   if (submitted) {
@@ -480,12 +556,87 @@ export default function V2PreviewRBR() {
             </SectionCard>
 
             <SectionCard number="02" title="Classe & Voiture / Class & Car">
-              <p className="mb-4 text-xs text-zinc-500">
-                Clique sur une classe pour voir les voitures disponibles.
-              </p>
+              {isEditing && (
+                <div
+                  className="mb-5 rounded-2xl border p-4"
+                  style={{
+                    borderColor:
+                      carChangeStatus === "approved"
+                        ? "#2ecc71"
+                        : carChangeStatus === "refused"
+                        ? "#e74c3c"
+                        : "#f0b429",
+                    background:
+                      carChangeStatus === "approved"
+                        ? "rgba(46,204,113,0.08)"
+                        : carChangeStatus === "refused"
+                        ? "rgba(231,76,60,0.08)"
+                        : "rgba(240,180,41,0.08)",
+                  }}
+                >
+                  {carChangeStatus === "none" && (
+                    <>
+                      <p className="mb-3 text-sm text-zinc-300">
+                        🔒 Pour changer de classe ou de voiture, envoie d'abord une demande aux
+                        admins. La sélection ci-dessous reste verrouillée tant qu'elle n'est pas
+                        validée.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={requestCarChange}
+                        disabled={carChangeLoading}
+                        className="rounded-xl bg-[#f0b429] px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-60"
+                      >
+                        {carChangeLoading ? "Envoi..." : "Demander un changement de voiture"}
+                      </button>
+                    </>
+                  )}
 
-              <div className="flex flex-wrap gap-2.5">
-                {FFSA_CLASSES.map((cls) => {
+                  {carChangeStatus === "pending" && (
+                    <p className="text-sm text-[#f0b429]">
+                      ⏳ Demande envoyée, en attente de validation des admins sur Discord. Cette
+                      page se met à jour automatiquement dès que c'est traité.
+                    </p>
+                  )}
+
+                  {carChangeStatus === "approved" && (
+                    <p className="text-sm text-emerald-400">
+                      ✅ Changement autorisé ! Tu peux choisir ta nouvelle classe/voiture
+                      ci-dessous.
+                    </p>
+                  )}
+
+                  {carChangeStatus === "refused" && (
+                    <div>
+                      <p className="mb-3 text-sm text-red-400">
+                        ❌ Ta demande a été refusée par les admins.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={requestCarChange}
+                        disabled={carChangeLoading}
+                        className="rounded-xl border border-[#f0b429] px-5 py-2.5 text-sm font-bold text-[#f0b429] transition hover:bg-[#f0b429]/10 disabled:opacity-60"
+                      >
+                        {carChangeLoading ? "Envoi..." : "Refaire une demande"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div
+                className={
+                  isEditing && carChangeStatus !== "approved"
+                    ? "pointer-events-none select-none opacity-40"
+                    : ""
+                }
+              >
+                <p className="mb-4 text-xs text-zinc-500">
+                  Clique sur une classe pour voir les voitures disponibles.
+                </p>
+
+                <div className="flex flex-wrap gap-2.5">
+                  {FFSA_CLASSES.map((cls) => {
                   const isActive = activeClass === cls.id;
                   const isSelected = form.classId === cls.id;
 
@@ -584,6 +735,8 @@ export default function V2PreviewRBR() {
                   )}
                 </div>
               )}
+
+              </div>
 
               {errors.car && <p className="mt-2 text-sm text-[#f0b429]">{errors.car}</p>}
             </SectionCard>
@@ -718,6 +871,25 @@ export default function V2PreviewRBR() {
                         }
 
                         setIsEditing(true);
+
+                        // Vérifie s'il y a déjà une demande de changement de
+                        // voiture en cours ou déjà traitée pour ce profil.
+                        try {
+                          const statusRes = await fetch(
+                            `${CAR_CHANGE_BOT_URL}/api/car-change-status?rsf=${encodeURIComponent(
+                              r.rsfProfile || form.rsfProfile
+                            )}`
+                          );
+                          const statusData = await statusRes.json();
+                          setCarChangeStatus(
+                            ["pending", "approved", "refused"].includes(statusData.status)
+                              ? statusData.status
+                              : "none"
+                          );
+                        } catch {
+                          setCarChangeStatus("none");
+                        }
+
                         alert("Inscription chargée 🔥");
                       } catch (err) {
                         alert("Erreur connexion bot");
