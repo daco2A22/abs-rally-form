@@ -78,6 +78,9 @@ export default function V2PreviewRBR() {
   // "none" | "pending" | "approved" | "refused"
   const [carChangeStatus, setCarChangeStatus] = useState("none");
   const [carChangeLoading, setCarChangeLoading] = useState(false);
+  // Voiture qu'avait le joueur avant de commencer à modifier (pour donner du
+  // contexte "avant / après" aux admins dans la demande)
+  const [originalCar, setOriginalCar] = useState("");
 
   const currentClass = useMemo(
     () => FFSA_CLASSES.find((c) => c.id === activeClass) || null,
@@ -132,6 +135,12 @@ export default function V2PreviewRBR() {
   const normalizeRSF = (url) => (url || "").trim().toLowerCase().replace(/\/$/, "");
 
   const requestCarChange = async () => {
+    const e = validate();
+    if (Object.keys(e).length > 0) {
+      setErrors(e);
+      return;
+    }
+
     if (!form.rsfProfile) {
       alert("Renseigne d'abord ton lien RSF avant de faire une demande.");
       return;
@@ -145,7 +154,8 @@ export default function V2PreviewRBR() {
         body: JSON.stringify({
           rsfProfile: form.rsfProfile,
           pseudo: form.pseudo,
-          currentCar: form.car,
+          currentCar: originalCar,
+          requestedCar: form.car,
         }),
       });
 
@@ -336,6 +346,7 @@ export default function V2PreviewRBR() {
     setActiveClass(null);
     setErrors({});
     setCarChangeStatus("none");
+    setOriginalCar("");
   };
 
   if (submitted) {
@@ -575,58 +586,42 @@ export default function V2PreviewRBR() {
                   }}
                 >
                   {carChangeStatus === "none" && (
-                    <>
-                      <p className="mb-3 text-sm text-zinc-300">
-                        🔒 Pour changer de classe ou de voiture, envoie d'abord une demande aux
-                        admins. La sélection ci-dessous reste verrouillée tant qu'elle n'est pas
-                        validée.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={requestCarChange}
-                        disabled={carChangeLoading}
-                        className="rounded-xl bg-[#f0b429] px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-60"
-                      >
-                        {carChangeLoading ? "Envoi..." : "Demander un changement de voiture"}
-                      </button>
-                    </>
+                    <p className="text-sm text-zinc-300">
+                      ℹ️ Choisis ci-dessous la classe et la voiture que tu souhaites, puis clique
+                      sur <strong>ENVOYER LA DEMANDE</strong> dans le résumé à droite. Ta
+                      modification ne sera enregistrée qu'une fois validée par un admin.
+                    </p>
                   )}
 
                   {carChangeStatus === "pending" && (
                     <p className="text-sm text-[#f0b429]">
-                      ⏳ Demande envoyée, en attente de validation des admins sur Discord. Cette
-                      page se met à jour automatiquement dès que c'est traité.
+                      ⏳ Demande envoyée pour <strong>{form.car || "cette voiture"}</strong>, en
+                      attente de validation des admins sur Discord. Cette page se met à jour
+                      automatiquement dès que c'est traité — la sélection reste verrouillée en
+                      attendant.
                     </p>
                   )}
 
                   {carChangeStatus === "approved" && (
                     <p className="text-sm text-emerald-400">
-                      ✅ Changement autorisé ! Tu peux choisir ta nouvelle classe/voiture
-                      ci-dessous.
+                      ✅ Changement autorisé ! Clique sur{" "}
+                      <strong>ENREGISTRER LA MODIFICATION</strong> dans le résumé à droite pour
+                      finaliser.
                     </p>
                   )}
 
                   {carChangeStatus === "refused" && (
-                    <div>
-                      <p className="mb-3 text-sm text-red-400">
-                        ❌ Ta demande a été refusée par les admins.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={requestCarChange}
-                        disabled={carChangeLoading}
-                        className="rounded-xl border border-[#f0b429] px-5 py-2.5 text-sm font-bold text-[#f0b429] transition hover:bg-[#f0b429]/10 disabled:opacity-60"
-                      >
-                        {carChangeLoading ? "Envoi..." : "Refaire une demande"}
-                      </button>
-                    </div>
+                    <p className="text-sm text-red-400">
+                      ❌ Ta demande a été refusée par les admins. Choisis une autre classe/voiture
+                      puis renvoie une demande.
+                    </p>
                   )}
                 </div>
               )}
 
               <div
                 className={
-                  isEditing && carChangeStatus !== "approved"
+                  isEditing && carChangeStatus === "pending"
                     ? "pointer-events-none select-none opacity-40"
                     : ""
                 }
@@ -812,11 +807,23 @@ export default function V2PreviewRBR() {
 
                 <div className="mt-2 space-y-3">
                   <button
-                    onClick={handleSubmit}
-                    disabled={loading}
+                    onClick={
+                      isEditing && carChangeStatus !== "approved"
+                        ? requestCarChange
+                        : handleSubmit
+                    }
+                    disabled={
+                      loading ||
+                      carChangeLoading ||
+                      (isEditing && carChangeStatus === "pending")
+                    }
                     className="w-full rounded-xl bg-[#f0b429] px-6 py-4 text-lg font-black uppercase tracking-[2px] text-white shadow-lg transition duration-200 hover:-translate-y-1 hover:brightness-105 active:translate-y-0 disabled:opacity-60"
                   >
-                    {isEditing ? "ENREGISTRER LA MODIFICATION →" : "VALIDER / SUBMIT →"}
+                    {!isEditing && "VALIDER / SUBMIT →"}
+                    {isEditing && carChangeStatus === "none" && "ENVOYER LA DEMANDE →"}
+                    {isEditing && carChangeStatus === "pending" && "EN ATTENTE DE VALIDATION..."}
+                    {isEditing && carChangeStatus === "refused" && "RENVOYER LA DEMANDE →"}
+                    {isEditing && carChangeStatus === "approved" && "ENREGISTRER LA MODIFICATION →"}
                   </button>
 
                   <button
@@ -871,6 +878,7 @@ export default function V2PreviewRBR() {
                         }
 
                         setIsEditing(true);
+                        setOriginalCar(r.car || "");
 
                         // Vérifie s'il y a déjà une demande de changement de
                         // voiture en cours ou déjà traitée pour ce profil.
